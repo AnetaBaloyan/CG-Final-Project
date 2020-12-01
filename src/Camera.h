@@ -15,7 +15,8 @@ enum Camera_Movement {
     FORWARD,
     BACKWARD,
     LEFT,
-    RIGHT
+    RIGHT,
+    NONE
 };
 
 // Default camera values
@@ -116,7 +117,7 @@ public:
     }
 
     mat4 GetInvertedCamera(float y) {
-      // returns the inverted camera matrix
+        // returns the inverted camera matrix
     }
 
 private:
