@@ -14,15 +14,10 @@
 #include "Camera.h"
 #include "Shader.h"
 #include "Texture.h"
+#include "Mesh.h"
 
 using namespace std;
 
-struct Surface {
-    GLfloat* coordinates; //array holding the vertex information.
-    int size; // the generated coordinates array size.
-    GLuint* indexBuffer; // array holding the indices of the triangle strips
-    int indexCount;
-} water, terrain;
 
 float windowWidth = 800;
 float windowHeight = 600;
@@ -153,6 +148,80 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     }
 }
 
+struct Surface {
+    GLfloat* coordinates; //array holding the vertex information.
+    int size; // the generated coordinates array size.
+    GLuint* indexBuffer; // array holding the indices of the triangle strips
+    int indexCount;
+} water, terrain;
+
+void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVertices, int stride, float wLen, float hLen, float xMin, float zMin) {
+    GLfloat* coordinates = new GLfloat[hVertices * vVertices * stride];
+
+    float x;
+    float z;
+
+    for (int i = 0; i < vVertices; i++) {
+        z = zMin + i * hLen;
+
+        for (int j = 0; j < hVertices; j++) {
+            float x = (float)xMin + j * (float)wLen;
+            int index = (i * hVertices + j) * stride;
+            printf("\nInd: %d, %d, %d", (i * hVertices + j), i, j);
+
+            // vertex coord
+            coordinates[index] = x;
+            coordinates[index + 1] = 0.;
+            coordinates[index + 2] = z;
+
+            // texture u, v
+            float u = (float)j / (float)(hVertices - 1);
+            float v = (float)i / (float)(vVertices - 1);
+            coordinates[index + 3] = u;
+            coordinates[index + 4] = 1 - v;
+        }
+    }
+
+    for (int i = 0; i < hVertices * vVertices * stride; i++) {
+        if (i % 5 == 0) {
+            printf("\n");
+        }
+        printf("\n %f", coordinates[i]);
+    }
+
+    int indices_length = hVertices * (vVertices - 2) * 2 + hVertices * 2 + (vVertices - 2) * 2;
+    GLuint* indices = new GLuint[indices_length];
+    printf("\nIndex Length: %d", indices_length);
+
+    printf("\nIndices");
+
+    int index = 0;
+    for (int i = 0; i < vVertices - 1; i++) {
+        for (int j = 0; j < hVertices; j++) {
+            indices[index++] = i * hVertices + j;
+            if (j == 0 && i > 0) {
+                indices[index++] = indices[index - 1];
+            }
+            indices[index++] = i * hVertices + j + hVertices;
+            if (j == (hVertices - 1)) {
+                indices[index++] = indices[index - 1];
+            }
+        }
+    }
+    printf("\n");
+
+    for (int i = 0; i < indices_length; i++) {
+        printf("%u, ", indices[i]);
+    }
+    printf("\n");
+
+    surface.coordinates = coordinates;
+    surface.size = hVertices * vVertices * stride;
+    surface.indexBuffer = indices;
+    surface.indexCount = indices_length;
+}
+
+
 
 int main(void)
 {
@@ -190,109 +259,40 @@ int main(void)
         fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
     }
 
+    // plane coordinates setup
     glm::vec3 A = glm::vec3(-1., 0., -1.);
     glm::vec3 B = glm::vec3(1., 0., -1.);
     glm::vec3 C = glm::vec3(1., 0., 1.);
     glm::vec3 D = glm::vec3(-1., 0., 1.);
 
-
-    int hVertices = 3;
-    int vVertices = 3;
-    int dim = 5;
-
-    GLfloat* coordinates = new GLfloat[hVertices * vVertices * dim];
-
-    float w_len = (B.x - A.x) / (float) (hVertices - 1);
+    int hVertices = 5;
+    int vVertices = 5;
+    float w_len = (B.x - A.x) / (float)(hVertices - 1);
     float h_len = (D.z - A.z) / (float)(vVertices - 1);
 
-    float x;
-    float z;
+    // water plane
+    GenerateIndexedTriangleStripPlane(water, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
+    Mesh waterMesh = Mesh(water.coordinates, water.size);
+    waterMesh.BindIndexBuffer(water.indexBuffer, water.indexCount);
+    waterMesh.AddLayout(3); // vertex layout
+    waterMesh.AddLayout(2); // texture layout
 
-    for (int i = 0; i < vVertices; i++) {
-        z = A.z + i * h_len;
+    // terrain plane
+    //GenerateIndexedTriangleStripPlane(terrain, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
+    //Mesh terrainMesh = Mesh(terrain.coordinates, terrain.size);
+    //terrainMesh.BindIndexBuffer(terrain.indexBuffer, terrain.indexCount);
+    //terrainMesh.AddLayout(3); // vertex layout
+    //terrainMesh.AddLayout(2); // texture layout
 
-        for (int j = 0; j < hVertices; j++) {
-            float x = (float) A.x + j * (float) w_len;
-            int index = (i * hVertices + j) * dim;
-            printf("\nInd: %d, %d, %d", (i * hVertices + j), i, j);
-
-            // vertex coord
-            coordinates[index] = x;
-            coordinates[index + 1] = 0;
-            coordinates[index + 2] = z;
-
-            // texture u, v
-            float u = (float)j / (float)(hVertices - 1);
-            float v = (float)i / (float)(vVertices - 1);
-            coordinates[index + 3] = u;
-            coordinates[index + 4] = 1 - v;
-        }
-    }
-
-    for (int i = 0; i < hVertices * vVertices * dim; i++) {
-        if (i % 5 == 0) {
-            printf("\n");
-        }
-        printf("\n %f", coordinates[i]);
-    }
-
-    int indices_length = hVertices * (vVertices - 2) * 2 + hVertices * 2 + (vVertices - 2) * 2;
-    GLuint* indices = new GLuint[indices_length];
-    printf("\nIndex Length: %d", indices_length);
-
-    printf("\nIndices");
-
-    int index = 0;
-    for (int i = 0; i < vVertices-1; i++) {
-        for (int j = 0; j < hVertices; j++) {
-            indices[index++] = i * hVertices + j;
-            if (j == 0 && i > 0) {
-                indices[index++] = indices[index-1];
-            }
-            indices[index++] = i * hVertices + j + hVertices;
-            if (j == (hVertices - 1)) {
-                indices[index++] = indices[index-1];
-            }
-        }
-    }
-    printf("\n");
-
-    for (int i = 0; i < indices_length; i++) {
-        printf("%u, ", indices[i]);
-    }
-    printf("\n");
-
-    water.coordinates = coordinates;
-    water.size = hVertices * vVertices * dim;
-    water.indexBuffer = indices;
-    water.indexCount = indices_length;
-
-    GLuint position_buffer;
-    glGenBuffers(1, &position_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, position_buffer);
-    glBufferData(GL_ARRAY_BUFFER, water.size * sizeof(float), water.coordinates, GL_STATIC_DRAW);
-
-    // position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
-    glEnableVertexAttribArray(0);
-
-    //texture
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-
-    GLuint index_buffer;
-    glGenBuffers(1, &index_buffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, water.indexCount * sizeof(GLuint), water.indexBuffer, GL_STATIC_DRAW);
 
     // SHADER
-    Shader* shader = new Shader("./shaders/vertex.shader", "", "./shaders/fragment.shader");
+    Shader* shader = new Shader("./resources/shaders/vertex.shader", "", "./resources/shaders/fragment.shader");
     unsigned int program = shader->GetProgramId();
     shader->bind();
     // END SHADER
 
     // TEXTURE
-    Texture texture = Texture("WaterDiffuse.png");
+    Texture waterTexture = Texture("./resources/images/WaterDiffuse.png");
 
     glm::mat4 model = glm::mat4(1.0f);
     shader->SetMat4("model", model);
@@ -329,9 +329,9 @@ int main(void)
         float time = (float)glfwGetTime();
         shader->SetFloat("elapsedTime", time);
 
-        texture.Bind();
-
-        glDrawElements(GL_TRIANGLE_STRIP, indices_length, GL_UNSIGNED_INT, nullptr);
+        // draw water
+        waterTexture.Bind();
+        waterMesh.DrawElements();
 
         //Swap front and back buffers
         glfwSwapBuffers(window);

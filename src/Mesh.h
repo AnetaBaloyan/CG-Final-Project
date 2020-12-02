@@ -6,24 +6,24 @@
 
 class Mesh
 {
-	public:
-		Mesh(GLfloat vertices[], int count );
-		~Mesh();
-		void AddLayout(int element);
-		void Draw();
-		void DrawElements();
-		void BindIndexBuffer(GLint* indexBuffer, GLint indCount);
+public:
+    Mesh(GLfloat vertices[], int count);
+    ~Mesh();
+    void AddLayout(int element);
+    void Draw();
+    void DrawElements();
+    void BindIndexBuffer(GLuint* indexBuffer, GLint indCount);
 
-	private:
-		int stride;
-		GLuint vboId;
-		GLuint vaoId;
-		GLuint index_buffer;
-		GLfloat* vertices;
-		std::vector<int> layout;
-		int vertexCount;
-		int indexCount;
-		void GenerateLayout();
+private:
+    int stride;
+    GLuint vboId;
+    GLuint vaoId;
+    GLuint index_buffer;
+    GLfloat* vertices;
+    std::vector<int> layout;
+    int vertexCount;
+    int indexCount;
+    void GenerateLayout();
 };
 
 #endif
