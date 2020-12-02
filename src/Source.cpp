@@ -278,24 +278,30 @@ int main(void)
     waterMesh.AddLayout(2); // texture layout
 
     // terrain plane
-    //GenerateIndexedTriangleStripPlane(terrain, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
-    //Mesh terrainMesh = Mesh(terrain.coordinates, terrain.size);
-    //terrainMesh.BindIndexBuffer(terrain.indexBuffer, terrain.indexCount);
-    //terrainMesh.AddLayout(3); // vertex layout
-    //terrainMesh.AddLayout(2); // texture layout
+    GenerateIndexedTriangleStripPlane(terrain, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
+    Mesh terrainMesh = Mesh(terrain.coordinates, terrain.size);
+    terrainMesh.BindIndexBuffer(terrain.indexBuffer, terrain.indexCount);
+    terrainMesh.AddLayout(3); // vertex layout
+    terrainMesh.AddLayout(2); // texture layout
 
 
     // SHADER
-    Shader* shader = new Shader("./resources/shaders/vertex.shader", "", "./resources/shaders/fragment.shader");
-    unsigned int program = shader->GetProgramId();
-    shader->bind();
+    Shader* waterShader = new Shader("./resources/shaders/water_vertex.shader", "", "./resources/shaders/water_fragment.shader");
+    waterShader->bind();
+
+    Shader* terrainShader = new Shader("./resources/shaders/terrain_vertex.shader",
+                                       "./resources/shaders/terrain_geometry.shader", "./resources/shaders/terrain_fragment.shader");
+    terrainShader->bind();
     // END SHADER
 
     // TEXTURE
     Texture waterTexture = Texture("./resources/images/WaterDiffuse.png");
+    Texture terrainTexture = Texture("./resources/images/TerrainDiffuse.png");
+    Texture heightTexture = Texture("./resources/images/TerrainHeightMap.png");
 
     glm::mat4 model = glm::mat4(1.0f);
-    shader->SetMat4("model", model);
+    waterShader->SetMat4("model", model);
+    terrainShader->SetMat4("model", model);
 
     glm::mat4 view = glm::mat4(1.0f);
     glm::mat4 projection = glm::mat4(1.0f);
@@ -322,16 +328,35 @@ int main(void)
         }
         projection = glm::perspective(glm::radians(fov), windowWidth / windowHeight, 0.1f, 100.0f);
 
-        shader->SetMat4("view", view);
-        shader->SetMat4("projection", projection);
+        waterShader->SetMat4("view", view);
+        waterShader->SetMat4("projection", projection);
+        terrainShader->SetMat4("view", view);
+        terrainShader->SetMat4("projection", projection);
 
         // elapsed time
         float time = (float)glfwGetTime();
-        shader->SetFloat("elapsedTime", time);
+        waterShader->SetFloat("elapsedTime", time);
 
         // draw water
-        waterTexture.Bind();
+        waterShader->bind();
+        int wshId = waterShader->GetProgramId();
+        int i0 = glGetUniformLocation(wshId, "waterTexture");
+        glUniform1i(i0, 0);
+        waterTexture.Bind(GL_TEXTURE0);
         waterMesh.DrawElements();
+        waterTexture.Unbind();
+
+        // draw terrain
+        terrainShader->bind();
+        int tshId = terrainShader->GetProgramId();
+        int i1 = glGetUniformLocation(tshId, "texture1");
+        glUniform1i(i1, 0);
+        int i2 = glGetUniformLocation(tshId, "texture2");
+        glUniform1i(i2, 1);
+        terrainTexture.Bind(GL_TEXTURE0);
+        heightTexture.Bind(GL_TEXTURE1);
+        terrainMesh.DrawElements();
+        terrainTexture.Unbind();
 
         //Swap front and back buffers
         glfwSwapBuffers(window);
@@ -340,7 +365,8 @@ int main(void)
         glfwPollEvents();
     }
 
-    glDeleteProgram(program);
+    delete waterShader;
+    delete terrainShader;
 
     glfwTerminate();
     return 0;
