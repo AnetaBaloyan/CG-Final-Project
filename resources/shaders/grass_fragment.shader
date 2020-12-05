@@ -5,10 +5,10 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 // texture sampler
-uniform sampler2D terrainDiffuse;
+uniform sampler2D grassDiffuse;
 
 
 void main()
 {
-	FragColor = texture(terrainDiffuse, TexCoord);
+	FragColor = texture(grassDiffuse, TexCoord);
 }

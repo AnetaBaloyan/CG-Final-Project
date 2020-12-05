@@ -12,7 +12,9 @@ uniform float elapsedTime;
 
 void main()
 {
-	float newY = ((int((TexCoord.y + elapsedTime) * 100) % 100) / 100.0);
-	vec2 transformedUV = vec2(TexCoord.x, newY);
-	FragColor = texture(waterTexture, transformedUV);
+	float newX= ((int((TexCoord.x + elapsedTime/3) * 100) % 100) / 100.0);
+	vec2 transformedUV = vec2(newX, TexCoord.y);
+	vec4 tex_color = texture(waterTexture, transformedUV);
+	tex_color.a = 0.6;
+	FragColor = tex_color;
 }
