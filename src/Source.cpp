@@ -38,9 +38,18 @@ glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraFront));
 
+Camera camera = Camera();
+
+
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	if (firstMouse)
+	if (firstMouse) {
+		lastX = xpos * 1.0;
+		lastY = ypos * 1.0;
+		firstMouse = false;
+	}
+	camera.ProcessMouseMovement(xpos, ypos);
+	/*if (firstMouse)
 	{
 		lastX = xpos;
 		lastY = ypos;
@@ -89,55 +98,28 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 		position.y = cos(glm::radians(90 - pitch)) * radius;
 		position.z = cos(glm::radians(yaw)) * sin(glm::radians(90 - pitch)) * radius;
 		cameraPos = position;
-	}
+	}*/
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	fov -= (float)yoffset;
-	if (fov < 1.0f)
-		fov = 1.0f;
-	if (fov > 120.0f)
-		fov = 120.0f;
+	camera.ProcessMouseScroll(yoffset);
 }
 
 void processInput(GLFWwindow* window)
 {
-	float cameraSpeed = 2.5f * deltaTime;
-	if (gameView) {
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, true);
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-			cameraPos += cameraSpeed * cameraFront;
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-			cameraPos -= cameraSpeed * cameraFront;
-		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-			cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-			cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-		if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) { // ROTATE VIEW.
-			gameView = false;
-			pitch = 0.0f;
-			yaw = 0.0f;
-			cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-			cameraFront = glm::vec3(0.0f, 0.0f, 0.0f);
-			cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-			cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-		}
-	}
-	else {
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, true);
-		if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS) { //GAME VIEW.
-			gameView = true;
-			yaw = -90.0f;
-			pitch = 0.0f;
-			cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
-			cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-			cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-			cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-		}
-	}
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
+
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		camera.ProcessKeyboard(FORWARD, deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		camera.ProcessKeyboard(BACKWARD, deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		camera.ProcessKeyboard(LEFT, deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		camera.ProcessKeyboard(RIGHT, deltaTime);
+
 
 }
 
@@ -330,24 +312,29 @@ int main(void)
 		glClearColor(backgroundColor.x, backgroundColor.y, backgroundColor.z, backgroundColor.w);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		//glEnable(GL_CULL_FACE);
+		glDisable(GL_CULL_FACE);
 
 		float currentFrame = glfwGetTime();
+		//deltaTime = currentFrame - lastFrame;
+		//lastFrame = currentFrame;
+
+		//float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
+
 		processInput(window);// process keyboard inputs
-		cameraRight = glm::normalize(glm::cross(up, cameraFront));
+		//cameraRight = glm::normalize(glm::cross(up, cameraFront));
 
-		// DRAW!!!
-		if (gameView) {
-			view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-		}
-		else {
-			view = glm::lookAt(cameraPos, cameraFront, cameraUp);
-		}
+		//// DRAW!!!
+		//if (gameView) {
+		//	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+		//}
+		//else {
+		//	view = glm::lookAt(cameraPos, cameraFront, cameraUp);
+		//}
+		view = camera.GetViewMatrix();
 		projection = glm::perspective(glm::radians(fov), windowWidth / windowHeight, 0.1f, 100.0f);
-
 		
 		// elapsed time
 		float time = (float)glfwGetTime();
@@ -367,18 +354,7 @@ int main(void)
 		terrainTexture.Unbind();
 		heightTexture.Unbind();
 
-
-		// draw water
-		waterShader->bind();
-		waterShader->SetFloat("elapsedTime", time);
-		waterShader->SetMat4("view", view);
-		waterShader->SetMat4("projection", projection);
-		waterShader->SetInteger("waterTexture", 1);
-		waterTexture.Bind(GL_TEXTURE1);
-		waterMesh.DrawElements();
-		waterTexture.Unbind();
-
-		//draw grass
+		// draw grass
 		grassShader->bind();
 		grassShader->SetMat4("view", view);
 		grassShader->SetMat4("projection", projection);
