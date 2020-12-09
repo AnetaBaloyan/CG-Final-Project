@@ -20,21 +20,21 @@ void main() {
     TexCoord = tCoord[0];
     vec3 norm = normalize(cross(point2 - point1, point3 - point1));
     vec4 norm4 = projection * view * model * vec4(norm, 1);
-    Normal = norm4.xyz;
+    Normal = -norm;
     EmitVertex();
 
     gl_Position = projection * view * model * gl_in[1].gl_Position;
     TexCoord = tCoord[1];
     norm = normalize(cross(point3 - point2, point1 - point2));
     norm4 = projection * view * model * vec4(norm, 1);
-    Normal = norm4.xyz;
+    Normal = -norm;
     EmitVertex();
 
     gl_Position = projection * view * model * gl_in[2].gl_Position;
     TexCoord = tCoord[2];
     norm = normalize(cross(point1 - point3, point2 - point3));
     norm4 = projection * view * model * vec4(norm, 1);
-    Normal = norm4.xyz;
+    Normal = -norm;
     EmitVertex();
 
     EndPrimitive();

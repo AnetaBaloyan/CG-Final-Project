@@ -10,5 +10,11 @@ uniform sampler2D grassDiffuse;
 
 void main()
 {
-	FragColor = texture(grassDiffuse, TexCoord);
+	vec4 col = texture(grassDiffuse, TexCoord);
+
+	if (col.a < 0.001) {
+		discard;
+	}
+	FragColor = col;
+
 }

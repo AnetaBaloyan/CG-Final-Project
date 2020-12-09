@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 
+#include <glm/glm.hpp>
 #include <glm/vec3.hpp> 
 #include <glm/vec4.hpp> 
 #include <glm/mat4x4.hpp> 
@@ -15,6 +16,8 @@
 #include "Shader.h"
 #include "Texture.h"
 #include "Mesh.h"
+#include "Ray.h"
+#include "Intersection.h"
 
 using namespace std;
 
@@ -30,76 +33,32 @@ float lastX = 400, lastY = 300;
 float fov = 70.0f;
 bool gameView = false;
 
-
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 4.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-glm::vec3 cameraRight = glm::normalize(glm::cross(up, cameraFront));
+// plane coordinates setup
+glm::vec3 A = glm::vec3(-1., 0.3, -1.);
+glm::vec3 B = glm::vec3(1., 0.3, -1.);
+glm::vec3 C = glm::vec3(1., 0.3, 1.);
+glm::vec3 D = glm::vec3(-1., 0.3, 1.);
 
 Camera camera = Camera();
 
+glm::vec3 ripplePoint;
+float startTime = -10000;
 
-void mouse_callback(GLFWwindow* window, double xpos, double ypos)
-{
-	if (firstMouse) {
-		lastX = xpos * 1.0;
-		lastY = ypos * 1.0;
-		firstMouse = false;
-	}
-	camera.ProcessMouseMovement(xpos, ypos);
-	/*if (firstMouse)
-	{
-		lastX = xpos;
-		lastY = ypos;
-		firstMouse = false;
-
-		if (!gameView) {
-			cameraFront.z = 0.0f;
-			yaw = 0.0f;
-		}
-	}
-
-	float xoffset = xpos - lastX;
-	float yoffset = lastY - ypos;
-	lastX = xpos;
-	lastY = ypos;
-
-	float sensitivity = 0.1f;
-	xoffset *= sensitivity;
-	yoffset *= sensitivity;
-
-	if (gameView) {
-		yaw += xoffset;
-		pitch += yoffset;
-	}
-	else {
-		yaw -= xoffset;
-		pitch -= yoffset;
-	}
-
-	if (pitch > 89.0f)
-		pitch = 89.0f;
-	if (pitch < -89.0f)
-		pitch = -89.0f;
-
-	if (gameView) {
-		glm::vec3 direction;
-		direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-		direction.y = sin(glm::radians(pitch));
-		direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-		cameraFront = glm::normalize(direction);
-	}
-	else {
-		float radius = glm::length(cameraPos);
-		glm::vec3 position;
-		position.x = sin(glm::radians(90 - pitch)) * sin(glm::radians(yaw)) * radius;
-		position.y = cos(glm::radians(90 - pitch)) * radius;
-		position.z = cos(glm::radians(yaw)) * sin(glm::radians(90 - pitch)) * radius;
-		cameraPos = position;
-	}*/
-}
+//void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+//{
+//	if (firstMouse) {
+//		lastX = xpos * 1.0;
+//		lastY = ypos * 1.0;
+//		firstMouse = false;
+//	}
+//	
+//	float xoffset = xpos - lastX;
+//	float yoffset = lastY - ypos;
+//	lastX = xpos;
+//	lastY = ypos;
+//
+//	camera.ProcessMouseMovement(xoffset, yoffset);
+//}
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
@@ -120,15 +79,100 @@ void processInput(GLFWwindow* window)
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera.ProcessKeyboard(RIGHT, deltaTime);
 
-
+	float offset = deltaTime * 100;
+	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+		camera.ProcessMouseMovement(offset, 0);
+	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+		camera.ProcessMouseMovement(-offset, 0);
+	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+		camera.ProcessMouseMovement(0, -offset);
+	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+		camera.ProcessMouseMovement(0, offset);
 }
+
+Ray ConstructRayThroughPixel(int i, int j)
+{
+	float imageAspectRatio = windowWidth / windowHeight;
+	float tanFOVHalf = tan(camera.Zoom * 2);
+
+	float pixelCamera_x = (2 * (i + 0.5) / (float)windowWidth - 1) * imageAspectRatio * tanFOVHalf;
+	float pixelCamera_y = (1 - 2 * (j + 0.5) / (float)windowHeight) * tanFOVHalf;
+
+	glm::vec4 vec = glm::vec4(glm::normalize(glm::vec3(pixelCamera_x, pixelCamera_y, -1)), 1);
+	glm::vec4 transformed = vec * camera.GetInvertedCamera();
+
+	return Ray(camera.Position, glm::vec3(transformed.x, 0.3, transformed.z));
+}
+
+bool Intersect(const Ray& r, glm::vec3& P) {
+	glm::vec3 N = glm::vec3(0.0, 1.0, 0.0);
+
+	printf("Ray org %f %f %f", r.orig[0], r.orig[1], r.orig[2]);
+	printf("\nRay dir %f %f %f", r.dir[0], r.dir[1], r.dir[2]);
+
+	float dotNRay = glm::dot(N, r.dir);
+
+	printf("\nDotNRay %f", dotNRay);
+
+	if (dotNRay <= 0) {
+		return false;
+	}
+
+	float D_vec = glm::dot(N, A);
+
+	float t = -(D_vec - glm::dot(N, r.orig)) / dotNRay;
+
+	//float t = (glm::dot(N, r.orig) + D_vec) / dotNRay;
+
+	printf("\nT %f", t);
+
+	if (t < 0) {
+		return false;
+	}
+
+	P = r.orig + t * glm::normalize(r.dir);
+	printf("\nP coord %f %f %f", P.x, P.y, P.z);
+	return true;
+	/*glm::vec3 edge1 = B - A;
+	glm::vec3 edge2 = C - B;
+	glm::vec3 edge3 = D - C;
+	glm::vec3 edge4 = A - D;
+
+	glm::vec3 C1 = P - A;
+	glm::vec3 C2 = P - B;
+	glm::vec3 C3 = P - C;
+	glm::vec3 C4 = P - D;
+
+	return glm::dot(N, glm::cross(edge1, C1)) > 0
+		&& glm::dot(N, glm::cross(edge2, C2)) > 0
+		&& glm::dot(N, glm::cross(edge3, C3)) > 0
+		&& glm::dot(N, glm::cross(edge4, C4)) > 0;*/
+}
+
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-		//popup_menu();
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	{
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		printf("\n");
+		cout << "Cursor Position at " << xpos << " : " << ypos << endl;
+
+		Ray ray = ConstructRayThroughPixel(xpos, ypos);
+		glm::vec3 P;
+		bool intersect = Intersect(ray, P);
+
+		if (intersect) {
+			ripplePoint = P;
+			startTime = (float)glfwGetTime();
+			printf("\n");
+			cout << "Ripple Position at " << P.x << " : " << P.y << " : " << P.z << endl;
+		}
 	}
 }
+
 
 struct Surface {
 	GLfloat* coordinates; //array holding the vertex information.
@@ -137,7 +181,8 @@ struct Surface {
 	int indexCount;
 } water, terrain;
 
-void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVertices, int stride, float wLen, float hLen, float xMin, float zMin) {
+
+void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVertices, int stride, float wLen, float hLen, float xMin, float zMin, float y) {
 	GLfloat* coordinates = new GLfloat[hVertices * vVertices * stride];
 
 	float x;
@@ -153,7 +198,7 @@ void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVer
 
 			// vertex coord
 			coordinates[index] = x;
-			coordinates[index + 1] = 0.;
+			coordinates[index + 1] = y;
 			coordinates[index + 2] = z;
 
 			// texture u, v
@@ -173,9 +218,6 @@ void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVer
 
 	int indices_length = hVertices * (vVertices - 2) * 2 + hVertices * 2 + (vVertices - 2) * 2;
 	GLuint* indices = new GLuint[indices_length];
-	/*printf("\nIndex Length: %d", indices_length);
-
-	printf("\nIndices");*/
 
 	int index = 0;
 	for (int i = 0; i < vVertices - 1; i++) {
@@ -190,19 +232,12 @@ void GenerateIndexedTriangleStripPlane(Surface &surface, int hVertices, int vVer
 			}
 		}
 	}
-	//printf("\n");
-
-	/*for (int i = 0; i < indices_length; i++) {
-		printf("%u, ", indices[i]);
-	}
-	printf("\n");*/
 
 	surface.coordinates = coordinates;
 	surface.size = hVertices * vVertices * stride;
 	surface.indexBuffer = indices;
 	surface.indexCount = indices_length;
 }
-
 
 
 int main(void)
@@ -224,11 +259,11 @@ int main(void)
 	}
 
 	//// TODO
-	//glfwSetMouseButtonCallback(window, mouse_button_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorPosCallback(window, mouse_callback);
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	//glfwSetCursorPosCallback(window, mouse_callback);
 	glfwSetScrollCallback(window, scroll_callback);
 
 	glfwSwapInterval(1);
@@ -243,31 +278,26 @@ int main(void)
 		fprintf(stderr, "Error: %s\n", glewGetErrorString(err));
 	}
 
-	// plane coordinates setup
-	glm::vec3 A = glm::vec3(-1., 0., -1.);
-	glm::vec3 B = glm::vec3(1., 0., -1.);
-	glm::vec3 C = glm::vec3(1., 0., 1.);
-	glm::vec3 D = glm::vec3(-1., 0., 1.);
-
 	int hVertices = 500;
 	int vVertices = 500;
 	float w_len = (B.x - A.x) / (float)(hVertices - 1);
 	float h_len = (D.z - A.z) / (float)(vVertices - 1);
 
 	// WATER PART
-	GenerateIndexedTriangleStripPlane(water, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
+	GenerateIndexedTriangleStripPlane(water, hVertices, vVertices, 5, w_len, h_len, A.x, A.z, 0.3);
 	Mesh waterMesh = Mesh(water.coordinates, water.size);
 	waterMesh.BindIndexBuffer(water.indexBuffer, water.indexCount);
 	waterMesh.AddLayout(3); // vertex layout
 	waterMesh.AddLayout(2); // texture layout
 
-	Shader* waterShader = new Shader("./resources/shaders/water_vertex.shader", "", "./resources/shaders/water_fragment.shader");
+	Shader* waterShader = new Shader("./resources/shaders/water_vertex.shader", 
+		"./resources/shaders/water_geometry.shader", "./resources/shaders/water_fragment.shader");
 	waterShader->bind();
 	glm::mat4 model = glm::mat4(1.0f);
 	waterShader->SetMat4("model", model);
 
 	// TERRAIN PART
-	GenerateIndexedTriangleStripPlane(terrain, hVertices, vVertices, 5, w_len, h_len, A.x, A.z);
+	GenerateIndexedTriangleStripPlane(terrain, hVertices, vVertices, 5, w_len, h_len, A.x, A.z, 0);
 	Mesh terrainMesh = Mesh(terrain.coordinates, terrain.size);
 	terrainMesh.BindIndexBuffer(terrain.indexBuffer, terrain.indexCount);
 	terrainMesh.AddLayout(3); // vertex layout
@@ -297,7 +327,6 @@ int main(void)
 	glm::mat4 projection = glm::mat4(1.0f);
 
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -315,24 +344,11 @@ int main(void)
 		glDisable(GL_CULL_FACE);
 
 		float currentFrame = glfwGetTime();
-		//deltaTime = currentFrame - lastFrame;
-		//lastFrame = currentFrame;
-
-		//float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 
-
 		processInput(window);// process keyboard inputs
-		//cameraRight = glm::normalize(glm::cross(up, cameraFront));
 
-		//// DRAW!!!
-		//if (gameView) {
-		//	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-		//}
-		//else {
-		//	view = glm::lookAt(cameraPos, cameraFront, cameraUp);
-		//}
 		view = camera.GetViewMatrix();
 		projection = glm::perspective(glm::radians(fov), windowWidth / windowHeight, 0.1f, 100.0f);
 		
@@ -343,6 +359,11 @@ int main(void)
 		terrainShader->bind();
 		terrainShader->SetMat4("view", view);
 		terrainShader->SetMat4("projection", projection);
+		terrainShader->SetVec3("lightDir", glm::vec3(-1.0, -1.0, -1.0));
+		terrainShader->SetVec3("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
+		terrainShader->SetFloat("ambientStrength", 0.3);
+		terrainShader->SetFloat("diffuseStrength", 0.7);
+
 		int tshId = terrainShader->GetProgramId();
 		int i1 = glGetUniformLocation(tshId, "terrainDiffuse");
 		glUniform1i(i1, 0);
@@ -376,8 +397,16 @@ int main(void)
 		// draw water
 		waterShader->bind();
 		waterShader->SetFloat("elapsedTime", time);
+		waterShader->SetFloat("startTime", startTime);
 		waterShader->SetMat4("view", view);
 		waterShader->SetMat4("projection", projection);
+		waterShader->SetVec3("lightDir", glm::vec3(-1.0, -1.0, -1.0));
+		waterShader->SetVec3("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
+		waterShader->SetFloat("ambientStrength", 0.25);
+		waterShader->SetFloat("diffuseStrength", 0.65);
+		waterShader->SetFloat("specularStrength", 0.1);
+		waterShader->SetFloat("shininess", 16.0);
+		waterShader->SetVec3("ripple", ripplePoint.x, ripplePoint.y, ripplePoint.z);
 		waterShader->SetInteger("waterTexture", 1);
 		waterTexture.Bind(GL_TEXTURE1);
 		waterMesh.DrawElements();

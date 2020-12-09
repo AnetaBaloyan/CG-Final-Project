@@ -46,7 +46,7 @@ public:
     float Zoom;
 
     // constructor with vectors
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
+    Camera(glm::vec3 position = glm::vec3(0.0f, 1.5f, 2.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, 0.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
     {
         Position = position;
         WorldUp = up;
@@ -116,8 +116,14 @@ public:
             Zoom = 45.0f;
     }
 
-    mat4 GetInvertedCamera(float y) {
-        // returns the inverted camera matrix
+    glm::mat4 GetInvertedCamera() {
+        glm::mat4 view = GetViewMatrix();
+        glm::mat4 pos = glm::mat4(1);
+        //glm::translate(transpose(view), glm::vec3(0.0f, 0.0f, -Position));
+        glm::mat4 trans_view = glm::inverse(GetViewMatrix());
+
+        return glm::translate(transpose(view), Position);;
+        //return glm::inverse(GetViewMatrix());
     }
 
 private:
@@ -137,3 +143,49 @@ private:
 
 };
 #endif
+
+//// camera
+//glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 10.0f);
+//glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+//glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+//glm::mat4 View = glm::mat4(1.0f);
+//Camera* camera = new Camera(cameraPosition, cameraUp);
+//
+//bool firstMouse = true;
+//float lastX = windowWidth / 2.0;
+//float lastY = windowHeight / 2.0;
+
+//void processInput(GLFWwindow* window)
+//{
+//	Camera_Movement movement = NONE;
+//
+//	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+//		movement = FORWARD;
+//	}
+//	else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+//		movement = BACKWARD;
+//	}
+//	else if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+//		movement = LEFT;
+//	}
+//	else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+//		movement = RIGHT;
+//	}
+//	camera->ProcessKeyboard(movement, 1.);
+//}
+//
+//
+//void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+//{
+//	if (firstMouse)
+//	{
+//		lastX = xpos * 1.0;
+//		lastY = ypos * 1.0;
+//		firstMouse = false;
+//	}
+//
+//	float xoffset = xpos - lastX;
+//	float yoffset = lastY - ypos;
+//
+//	camera->ProcessMouseMovement(xoffset, yoffset);
+//}
